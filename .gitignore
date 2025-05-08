@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *.log
+*.db
 *.env
 *.sqlite3
 info.txt
