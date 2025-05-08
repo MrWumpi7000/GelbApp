@@ -2,7 +2,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 
-# Database URL
 SQLALCHEMY_DATABASE_URL = "sqlite:///./gelbapp.db"
 
 # Create the database engine
