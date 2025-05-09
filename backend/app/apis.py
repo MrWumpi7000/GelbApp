@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from fastapi import APIRouter, HTTPException, Depends # type: ignore
+from sqlalchemy.orm import Session # type: ignore
+from sqlalchemy import or_ # type: ignore
 from app.models import User
 from app.utils import hash_password, verify_password, whoami, create_access_token
 from app.database import get_db
@@ -25,7 +25,9 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
 
-    return {"message": "User registered successfully", "user_id": db_user.id}
+    access_token = create_access_token(data={"email": User.email})
+    
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 
