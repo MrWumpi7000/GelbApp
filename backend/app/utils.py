@@ -1,5 +1,5 @@
 import bcrypt
-from jose import JWTError, jwt
+from jose import JWTError, jwt # type: ignore
 from datetime import datetime, timedelta
 
 SECRET_KEY = "Testing"  # ⚠️ Replace with a secure value in production

@@ -25,8 +25,8 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
 
-    access_token = create_access_token(data={"email": User.email})
-    
+    access_token = create_access_token(data={"email": request.email})
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 
