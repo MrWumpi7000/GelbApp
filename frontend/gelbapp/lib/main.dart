@@ -7,6 +7,7 @@ import 'pages/profile_page.dart';
 import 'pages/create_lobby_page.dart';
 import 'pages/login_page.dart';
 import 'pages/register_page.dart';
+import 'widgets/protected_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,20 +33,21 @@ class MyApp extends StatelessWidget {
     switch (settings.name) {
       // Routes without animation:
       case '/':
-        return _noAnimationRoute(HomePage(), settings);
+        return _noAnimationRoute(ProtectedPage(child: HomePage()), settings);
       case '/leaderboard':
-        return _noAnimationRoute(LeaderboardPage(), settings);
+        return _noAnimationRoute(ProtectedPage(child: LeaderboardPage()), settings);
       case '/statistics':
-        return _noAnimationRoute(StatisticsPage(), settings);
+        return _noAnimationRoute(ProtectedPage(child: StatisticsPage()), settings);
       case '/profile':
-        return _noAnimationRoute(ProfilePage(), settings);
+        return _noAnimationRoute(ProtectedPage(child: ProfilePage()), settings);
 
       // Routes with default animation:
-      case '/create_lobby':
-        return MaterialPageRoute(
-          builder: (_) => CreateLobbyPage(),
-          settings: settings,
-        );
+    case '/create_lobby':
+      return MaterialPageRoute(
+        builder: (_) => ProtectedPage(child: CreateLobbyPage()),
+        settings: settings,
+      );
+
       case '/login':
         return MaterialPageRoute(
           builder: (_) => LoginPage(),
