@@ -1,16 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:gelbapp/services/auth_service.dart';
 
-class CustomBottomAppBar extends StatelessWidget {
+class CustomBottomAppBar extends StatefulWidget {
   final int currentIndex;
 
   const CustomBottomAppBar({required this.currentIndex, super.key});
 
-  void _onTap(BuildContext context, int index) {
-    final routes = ['/', '/leaderboard', '/statistics', '/profile'];
-    if (index < routes.length) {
-      Navigator.pushReplacementNamed(context, routes[index]);
-    }
+  @override
+  State<CustomBottomAppBar> createState() => _CustomBottomAppBarState();
+}
+
+class _CustomBottomAppBarState extends State<CustomBottomAppBar> {
+  late Future<ImageProvider> _userImageFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _userImageFuture = AuthService().getProfilePictureBytes();
   }
+
+ void _onTap(BuildContext context, int index) {
+  final routes = ['/', '/leaderboard', '/statistics', '/profile'];
+
+  if (index < routes.length && ModalRoute.of(context)?.settings.name != routes[index]) {
+    Navigator.pushNamed(context, routes[index]);
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +53,7 @@ class CustomBottomAppBar extends StatelessWidget {
   }
 
   Widget _buildNavItem(BuildContext context, IconData icon, String label, int index) {
-    final isSelected = currentIndex == index;
+    final isSelected = widget.currentIndex == index;
     return GestureDetector(
       onTap: () => _onTap(context, index),
       child: Column(
@@ -60,16 +75,35 @@ class CustomBottomAppBar extends StatelessWidget {
   }
 
   Widget _buildProfileItem(BuildContext context, int index) {
-    final isSelected = currentIndex == index;
+    final isSelected = widget.currentIndex == index;
     return GestureDetector(
       onTap: () => _onTap(context, index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircleAvatar(
-            radius: 12,
-            backgroundImage: AssetImage("assets/profile.jpg"),
+          FutureBuilder<ImageProvider>(
+            future: _userImageFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const CircleAvatar(
+                  radius: 12,
+                  backgroundColor: Colors.grey,
+                  child: SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+                );
+              } else if (snapshot.hasError) {
+                return const CircleAvatar(
+                  radius: 12,
+                  backgroundColor: Colors.red,
+                  child: Icon(Icons.error, size: 14),
+                );
+              } else {
+                return CircleAvatar(
+                  radius: 12,
+                  backgroundImage: snapshot.data!,
+                );
+              }
+            },
           ),
           const SizedBox(height: 2),
           Text(

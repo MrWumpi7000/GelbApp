@@ -19,4 +19,5 @@ venv/
 .DS_Store
 
 # Migrations
+uploads/
 migrations/

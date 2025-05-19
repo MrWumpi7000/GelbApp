@@ -1,7 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
 class AuthService {
   final String _baseUrl = 'http://awesom-o.org:8000';
 
@@ -58,6 +58,61 @@ class AuthService {
     }
   }
 
+  Future<bool> whoAmI() async {
+    final url = Uri.parse('$_baseUrl/whoami');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'token': await getToken(),
+      }),
+    );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    final username = data['username'];
+    final email = data['email'];
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('username', username);
+    await prefs.setString('email', email);
+
+    return true;
+  } else {
+    return false;
+  }
+}
+
+  Future<ImageProvider> getProfilePictureBytes() async {
+  final prefs = await SharedPreferences.getInstance();
+  final url = Uri.parse('$_baseUrl/profile_picture');
+
+  final cachedImageBase64 = prefs.getString('image');
+  if (cachedImageBase64 != null) {
+    final bytes = base64Decode(cachedImageBase64);
+    return MemoryImage(bytes);
+  }
+
+  final response = await http.post(
+    url,
+    headers: {'Content-Type': 'application/json'},
+    body: '{"token": "${await getToken()}"}',
+  );
+
+  if (response.statusCode == 200) {
+    final bytes = response.bodyBytes;
+    final encoded = base64Encode(bytes);
+    await prefs.setString('image', encoded); // store as string
+    return MemoryImage(bytes);
+  } else {
+    throw Exception('Failed to load profile picture');
+  }
+}
+
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
@@ -70,6 +125,24 @@ class AuthService {
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('access_token');
+    await prefs.clear();
   }
+}
+
+Future<Map<String, String>> getUserData() async {
+  final prefs = await SharedPreferences.getInstance();
+  String? username = prefs.getString('username');
+  String? email = prefs.getString('email');
+
+  if (username == null || email == null) {
+    await AuthService().whoAmI();
+
+    username = prefs.getString('username');
+    email = prefs.getString('email');
+  }
+
+  return {
+    'username': username ?? '',
+    'email': email ?? '',
+  };
 }

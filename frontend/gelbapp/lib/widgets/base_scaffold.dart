@@ -10,6 +10,7 @@ class BaseScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFEDD37),
       body: child,
       bottomNavigationBar: CustomBottomAppBar(currentIndex: currentIndex),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

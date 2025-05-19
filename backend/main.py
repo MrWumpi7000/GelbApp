@@ -1,13 +1,18 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from app.apis import router  # Import the router from apis.py
 from app.database import Base, engine  # Import Base and engine to create the database tables
 from fastapi.middleware.cors import CORSMiddleware
-
+import os
 # Create the database tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI()
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,

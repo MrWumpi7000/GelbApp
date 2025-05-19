@@ -11,3 +11,7 @@ class TokenRequest(BaseModel):
 class LoginRequest(BaseModel):
     username_or_email: str
     password: str
+    
+class BioRequest(BaseModel):
+    token: str
+    bio: str
