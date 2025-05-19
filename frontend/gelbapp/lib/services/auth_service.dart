@@ -2,6 +2,11 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io' as io;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart'; // for kIsWeb
+import 'package:http_parser/http_parser.dart';
+
 class AuthService {
   final String _baseUrl = 'http://awesom-o.org:8000';
 
@@ -112,6 +117,50 @@ class AuthService {
     throw Exception('Failed to load profile picture');
   }
 }
+    Future<void> uploadProfilePictureMobile(io.File imageFile) async {
+    final url = Uri.parse('http://awesom-o.org:8000/upload_profile_picture');
+    final token = await getToken();
+    if (token == null) throw Exception('Token is null');
+
+    final request = http.MultipartRequest('POST', url)
+      ..fields['token'] = token
+      ..files.add(await http.MultipartFile.fromPath(
+        'file',
+        imageFile.path,
+        contentType: MediaType('image', 'png'),
+      ));
+
+    final response = await request.send();
+    if (response.statusCode != 200) {
+      throw Exception('Failed to upload profile picture');
+    }
+  }
+
+  // Web version
+  Future<void> uploadProfilePictureWeb(Uint8List bytes, String filename) async {
+    final url = Uri.parse('http://awesom-o.org:8000/upload_profile_picture');
+    final token = await getToken();
+    if (token == null) throw Exception('Token is null');
+
+    final request = http.MultipartRequest('POST', url)
+      ..fields['token'] = token
+      ..files.add(http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filename,
+        contentType: MediaType('image', 'png'),
+      ));
+
+    final response = await request.send();
+    if (response.statusCode == 200) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('image');
+      getProfilePictureBytes();
+    }
+    if (response.statusCode != 200) {
+      throw Exception('Failed to upload profile picture');
+    }
+  }
 
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();

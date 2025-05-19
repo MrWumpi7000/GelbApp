@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'custom_bottom_app_bar.dart';
 
 class BaseScaffold extends StatelessWidget {
-  final Widget child;
-  final int currentIndex;
 
-  const BaseScaffold({required this.child, required this.currentIndex, super.key});
+  final GlobalKey<CustomBottomAppBarState>? bottomBarKey;
+  final int currentIndex;
+  final Widget child;
+
+  const BaseScaffold({required this.child, required this.currentIndex, this.bottomBarKey, super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      
       backgroundColor: const Color(0xFFFEDD37),
       body: child,
       bottomNavigationBar: CustomBottomAppBar(currentIndex: currentIndex),

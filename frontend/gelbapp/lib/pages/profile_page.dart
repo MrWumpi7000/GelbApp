@@ -1,6 +1,11 @@
+import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:flutter/material.dart';
 import 'package:gelbapp/widgets/base_scaffold.dart';
 import 'package:gelbapp/services/auth_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'package:gelbapp/widgets/custom_bottom_app_bar.dart';
+import 'dart:io' as io;
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -10,18 +15,52 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late Future<Map<String, String>> _userDataFuture;
   late Future<ImageProvider> _userImageFuture;
+  final GlobalKey<CustomBottomAppBarState> _bottomBarKey = GlobalKey<CustomBottomAppBarState>();
 
   @override
   void initState() {
     super.initState();
-    _userImageFuture = AuthService().getProfilePictureBytes(); // returns Future<ImageProvider>
-    _userDataFuture = getUserData(); // also a Future
+    _loadUserData();
+  }
+
+  void _loadUserData() {
+    _userImageFuture = AuthService().getProfilePictureBytes();
+    _userDataFuture = getUserData();
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      try {
+        if (kIsWeb) {
+          final bytes = await pickedFile.readAsBytes();
+          await AuthService().uploadProfilePictureWeb(bytes, pickedFile.name);
+        } else {
+          final file = io.File(pickedFile.path);
+          await AuthService().uploadProfilePictureMobile(file);
+        }
+
+        // Reload image after upload
+        setState(() {
+          _bottomBarKey.currentState?.refreshProfileImage();
+          _userImageFuture = AuthService().getProfilePictureBytes();
+        });
+      } catch (e) {
+        print('Upload failed: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return BaseScaffold(
       currentIndex: 3,
+      bottomBarKey: _bottomBarKey,
       child: FutureBuilder<Map<String, String>>(
         future: _userDataFuture,
         builder: (context, userSnapshot) {
@@ -39,23 +78,32 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      FutureBuilder<ImageProvider>(
-                      future: _userImageFuture,
-                      builder: (context, imageSnapshot) {
-                        if (imageSnapshot.connectionState == ConnectionState.waiting) {
-                          return const CircleAvatar(
-                            radius: 50,
-                            backgroundColor: Colors.grey,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          );
-                        } else {
-                          return CircleAvatar(
-                            radius: 50,
-                            backgroundImage: imageSnapshot.data!,
-                          );
-                        }
-                      },
-                    ),
+                      GestureDetector(
+                        onTap: _pickAndUploadImage,
+                        child: FutureBuilder<ImageProvider>(
+                          future: _userImageFuture,
+                          builder: (context, imageSnapshot) {
+                            if (imageSnapshot.connectionState == ConnectionState.waiting) {
+                              return const CircleAvatar(
+                                radius: 50,
+                                backgroundColor: Colors.grey,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              );
+                            } else if (imageSnapshot.hasData) {
+                              return CircleAvatar(
+                                radius: 50,
+                                backgroundImage: imageSnapshot.data,
+                              );
+                            } else {
+                              return const CircleAvatar(
+                                radius: 50,
+                                backgroundColor: Colors.grey,
+                                child: Icon(Icons.person),
+                              );
+                            }
+                          },
+                        ),
+                      ),
                       const SizedBox(height: 20),
                       const Text('GelbApp', style: TextStyle(fontSize: 24, color: Colors.white)),
                       const SizedBox(height: 30),

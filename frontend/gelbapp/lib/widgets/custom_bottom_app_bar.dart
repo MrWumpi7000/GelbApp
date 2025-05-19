@@ -4,13 +4,16 @@ import 'package:gelbapp/services/auth_service.dart';
 class CustomBottomAppBar extends StatefulWidget {
   final int currentIndex;
 
-  const CustomBottomAppBar({required this.currentIndex, super.key});
+  const CustomBottomAppBar({
+    required this.currentIndex,
+    Key? key, // Accepts the global key
+  }) : super(key: key);
 
   @override
-  State<CustomBottomAppBar> createState() => _CustomBottomAppBarState();
+  State<CustomBottomAppBar> createState() => CustomBottomAppBarState();
 }
 
-class _CustomBottomAppBarState extends State<CustomBottomAppBar> {
+class CustomBottomAppBarState extends State<CustomBottomAppBar> {
   late Future<ImageProvider> _userImageFuture;
 
   @override
@@ -18,6 +21,12 @@ class _CustomBottomAppBarState extends State<CustomBottomAppBar> {
     super.initState();
     _userImageFuture = AuthService().getProfilePictureBytes();
   }
+  void refreshProfileImage() {
+  setState(() {
+    _userImageFuture = AuthService().getProfilePictureBytes();
+  });
+}
+  final GlobalKey<CustomBottomAppBarState> bottomBarKey = GlobalKey();
 
  void _onTap(BuildContext context, int index) {
   final routes = ['/', '/leaderboard', '/statistics', '/profile'];
@@ -30,6 +39,7 @@ class _CustomBottomAppBarState extends State<CustomBottomAppBar> {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
+      key: bottomBarKey,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
       child: BottomAppBar(
         color: Colors.black87,
