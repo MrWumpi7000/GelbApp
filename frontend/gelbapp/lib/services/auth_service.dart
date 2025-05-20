@@ -6,7 +6,7 @@ import 'dart:io' as io;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:http_parser/http_parser.dart';
-
+import 'package:gelbapp/widgets/custom_bottom_app_bar.dart';
 class AuthService {
   final String _baseUrl = 'http://awesom-o.org:8000';
 
@@ -154,8 +154,8 @@ class AuthService {
     final response = await request.send();
     if (response.statusCode == 200) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('image');
-      getProfilePictureBytes();
+      await prefs.remove('image'); 
+      await getProfilePictureBytes();
     }
     if (response.statusCode != 200) {
       throw Exception('Failed to upload profile picture');

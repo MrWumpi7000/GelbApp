@@ -29,7 +29,7 @@ class CustomBottomAppBarState extends State<CustomBottomAppBar> {
   final GlobalKey<CustomBottomAppBarState> bottomBarKey = GlobalKey();
 
  void _onTap(BuildContext context, int index) {
-  final routes = ['/', '/leaderboard', '/statistics', '/profile'];
+  final routes = ['/', '/friends', '/statistics', '/profile'];
 
   if (index < routes.length && ModalRoute.of(context)?.settings.name != routes[index]) {
     Navigator.pushNamed(context, routes[index]);
@@ -51,7 +51,7 @@ class CustomBottomAppBarState extends State<CustomBottomAppBar> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(context, Icons.home, "Home", 0),
-              _buildNavItem(context, Icons.group, "Leaderboard", 1),
+              _buildNavItem(context, Icons.group, "Friends", 1),
               const SizedBox(width: 40),
               _buildNavItem(context, Icons.send, "Stats", 2),
               _buildProfileItem(context, 3),

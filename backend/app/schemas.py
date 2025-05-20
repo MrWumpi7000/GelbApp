@@ -15,3 +15,10 @@ class LoginRequest(BaseModel):
 class BioRequest(BaseModel):
     token: str
     bio: str
+    
+class AddFriendRequest(BaseModel):
+    friend_username: str
+    token: str 
+
+class SearchUsersRequest(TokenRequest):
+    query: str

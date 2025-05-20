@@ -15,7 +15,11 @@ class BaseScaffold extends StatelessWidget {
       
       backgroundColor: const Color(0xFFFEDD37),
       body: child,
-      bottomNavigationBar: CustomBottomAppBar(currentIndex: currentIndex),
+      bottomNavigationBar: CustomBottomAppBar(
+      key: bottomBarKey, // <-- This connects the key!
+      currentIndex: currentIndex,
+    ),
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: GestureDetector(
         onTap: () {

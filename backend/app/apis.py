@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form # type: ignore
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query # type: ignore
 from fastapi.responses import StreamingResponse # type: ignore
 from sqlalchemy.orm import Session # type: ignore
 from sqlalchemy import or_ # type: ignore
-from app.models import User, UserProfile
+from app.models import User, UserProfile, UserFriendship
 from app.utils import hash_password, verify_password, whoami, create_access_token
 from app.database import get_db
-from app.schemas import RegisterRequest, TokenRequest, LoginRequest, BioRequest
+from app.schemas import RegisterRequest, TokenRequest, LoginRequest, BioRequest, AddFriendRequest, SearchUsersRequest
 from uuid import uuid4
 import os
 import shutil
@@ -81,9 +81,15 @@ def upload_profile_picture(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    _, ext = os.path.splitext(file.filename.lower())
+
     # Validate file type
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only image uploads allowed.")
+    allowed_extensions = {".png", ".jpg", ".jpeg", ".gif"}
+
+        # Validate extension and content type
+    if ext not in allowed_extensions or not file.content_type.startswith("image/"):
+        print(f"Invalid file type: {file.content_type}, extension: {ext}")
+        raise HTTPException(status_code=400, detail="Only image files (.png, .jpg, .jpeg, .gif) are allowed.")
 
     # Generate secure unique filename
     ext = os.path.splitext(file.filename)[1].lower()
@@ -133,7 +139,7 @@ def get_profile_picture(
     if profile and profile.profile_picture and os.path.exists(profile.profile_picture):
         file_path = profile.profile_picture
     else:
-        file_path = "/home/jasper/workspace/GelbApp/backend/app/assets/no_profile.jpg"  # <-- Your default picture path
+        file_path = "/home/jasper/workspace/GelbApp/backend/app/assets/no_profile.jpg" 
 
     if not os.path.exists(file_path):
         raise HTTPException(status_code=500, detail="Default profile picture missing")
@@ -169,6 +175,199 @@ def update_bio(request: BioRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Bio updated successfully."}
+
+
+@router.post("/add_friend")
+def add_friend(req: AddFriendRequest, db: Session = Depends(get_db)):
+    email = whoami(req.token)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Can't add yourself
+    if req.friend_username == user.username or req.friend_username == user.email:
+        raise HTTPException(status_code=400, detail="Cannot add yourself as a friend")
+
+    friend = db.query(User).filter(
+        (User.username == req.friend_username) | (User.email == req.friend_username)
+    ).first()
+    if not friend:
+        raise HTTPException(status_code=404, detail="Friend not found")
+
+    # Check if friendship already exists in either direction
+    existing_friendship = db.query(UserFriendship).filter(
+        ((UserFriendship.user_id == user.id) & (UserFriendship.friend_id == friend.id)) |
+        ((UserFriendship.user_id == friend.id) & (UserFriendship.friend_id == user.id))
+    ).first()
+
+    if existing_friendship:
+        raise HTTPException(status_code=400, detail="Friend request already exists or you are already friends")
+
+    # Create the friend request
+    new_friendship = UserFriendship(user_id=user.id, friend_id=friend.id, status="pending")
+    db.add(new_friendship)
+    db.commit()
+
+    return {"message": "Friend request sent."}
+
+@router.post("/accept_friend")
+def accept_friend(request_id: int, token: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(token.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    friendship = db.query(UserFriendship).filter(
+        UserFriendship.id == request_id,
+        UserFriendship.friend_id == user.id,
+        UserFriendship.status == "pending"
+    ).first()
+
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Friend request not found")
+
+    friendship.status = "accepted"
+    db.commit()
+
+    return {"message": "Friend request accepted"}
+
+@router.post("/reject_friend")
+def reject_friend(request_id: int, token: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(token.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    friendship = db.query(UserFriendship).filter(
+        UserFriendship.id == request_id,
+        UserFriendship.friend_id == user.id,
+        UserFriendship.status == "pending"
+    ).first()
+
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Friend request not found")
+
+    friendship.status = "rejected"
+    db.commit()
+
+    return {"message": "Friend request rejected"}
+
+@router.post("/cancel_friend_request")
+def cancel_friend_request(request_id: int, token: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(token.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    friendship = db.query(UserFriendship).filter(
+        UserFriendship.id == request_id,
+        UserFriendship.user_id == user.id,
+        UserFriendship.status == "pending"
+    ).first()
+
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    db.delete(friendship)
+    db.commit()
+
+    return {"message": "Friend request canceled"}
+
+@router.delete("/remove_friend/{friend_id}")
+def remove_friend(friend_id: int, token: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(token.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    friendship = db.query(UserFriendship).filter(
+        ((UserFriendship.user_id == user.id) & (UserFriendship.friend_id == friend_id)) |
+        ((UserFriendship.user_id == friend_id) & (UserFriendship.friend_id == user.id)),
+        UserFriendship.status == "accepted"
+    ).first()
+
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Friend not found")
+
+    db.delete(friendship)
+    db.commit()
+
+    return {"message": "Friend removed"}
+
+@router.post("/friends")
+def list_friends(request: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(request.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    friendships = db.query(UserFriendship).filter(
+        ((UserFriendship.user_id == user.id) | (UserFriendship.friend_id == user.id)) &
+        (UserFriendship.status == "accepted")
+    ).all()
+
+    friends = []
+    for f in friendships:
+        friend_id = f.friend_id if f.user_id == user.id else f.user_id
+        friend = db.query(User).filter(User.id == friend_id).first()
+        friends.append({
+            "id": friend.id,
+            "username": friend.username,
+            "email": friend.email
+        })
+
+    return {"friends": friends}
+
+@router.post("/friend_requests/incoming")
+def incoming_requests(request: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(request.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    requests = db.query(UserFriendship).filter(
+        UserFriendship.friend_id == user.id,
+        UserFriendship.status == "pending"
+    ).all()
+
+    result = [
+        {"request_id": f.id, "from_user_id": f.user_id, "username": db.query(User).get(f.user_id).username}
+        for f in requests
+    ]
+    return {"incoming_requests": result}
+
+@router.post("/friend_requests/outgoing")
+def outgoing_requests(request: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(request.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    requests = db.query(UserFriendship).filter(
+        UserFriendship.user_id == user.id,
+        UserFriendship.status == "pending"
+    ).all()
+
+    result = [
+        {"request_id": f.id, "to_user_id": f.friend_id, "username": db.query(User).get(f.friend_id).username}
+        for f in requests
+    ]
+    return {"outgoing_requests": result}
+
+@router.post("/search_users")
+def search_users(request: SearchUsersRequest, db: Session = Depends(get_db)):
+    email = whoami(request.token)
+    current_user = db.query(User).filter(User.email == email).first()
+
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    results = db.query(User).filter(
+        ((User.username.ilike(f"%{request.query}%")) | (User.email.ilike(f"%{request.query}%"))) &
+        (User.id != current_user.id)
+    ).limit(10).all()
+
+    users_with_status = []
+    for user in results:
+        friendship = db.query(UserFriendship).filter(
+            ((UserFriendship.user_id == current_user.id) & (UserFriendship.friend_id == user.id)) |
+            ((UserFriendship.user_id == user.id) & (UserFriendship.friend_id == current_user.id))
+        ).first()
+
+        status = friendship.status if friendship else "none"
+        users_with_status.append({
+            "username": user.username,
+            "email": user.email,
+            "status": status
+        })
+
+    return users_with_status
 
 @router.get("/all_users")
 def get_all_users(db: Session = Depends(get_db)):

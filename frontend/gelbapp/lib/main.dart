@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'pages/home_page.dart';
-import 'pages/leaderboard_page.dart';
+import 'pages/friends_page.dart';
 import 'pages/statistics_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/create_lobby_page.dart';
@@ -34,8 +34,8 @@ class MyApp extends StatelessWidget {
       // Routes without animation:
       case '/':
         return _noAnimationRoute(ProtectedPage(child: HomePage()), settings);
-      case '/leaderboard':
-        return _noAnimationRoute(ProtectedPage(child: LeaderboardPage()), settings);
+      case '/friends':
+        return _noAnimationRoute(ProtectedPage(child: FriendsPage()), settings);
       case '/statistics':
         return _noAnimationRoute(ProtectedPage(child: StatisticsPage()), settings);
       case '/profile':
