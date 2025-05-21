@@ -6,7 +6,7 @@ import 'dart:io' as io;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:http_parser/http_parser.dart';
-import 'package:gelbapp/widgets/custom_bottom_app_bar.dart';
+
 class AuthService {
   final String _baseUrl = 'http://awesom-o.org:8000';
 
@@ -118,7 +118,7 @@ class AuthService {
   }
 }
     Future<void> uploadProfilePictureMobile(io.File imageFile) async {
-    final url = Uri.parse('http://awesom-o.org:8000/upload_profile_picture');
+    final url = Uri.parse('$_baseUrl/upload_profile_picture');
     final token = await getToken();
     if (token == null) throw Exception('Token is null');
 
@@ -138,7 +138,7 @@ class AuthService {
 
   // Web version
   Future<void> uploadProfilePictureWeb(Uint8List bytes, String filename) async {
-    final url = Uri.parse('http://awesom-o.org:8000/upload_profile_picture');
+    final url = Uri.parse('$_baseUrl/upload_profile_picture');
     final token = await getToken();
     if (token == null) throw Exception('Token is null');
 
@@ -161,6 +161,81 @@ class AuthService {
       throw Exception('Failed to upload profile picture');
     }
   }
+
+ Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+  final url = Uri.parse('$_baseUrl/search_users');
+  final token = await getToken(); // your token fetch logic
+
+  final response = await http.post(
+    url,
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'token': token,
+      'query': query,
+    }),
+  );
+
+  if (response.statusCode == 200) {
+    final decoded = jsonDecode(response.body);
+    if (decoded is List) {
+      return List<Map<String, dynamic>>.from(decoded);
+    } else {
+      throw Exception('Invalid response format');
+    }
+  } else {
+    throw Exception('Failed to search users: ${response.statusCode}');
+  }
+}
+
+Future<String> sendFriendRequest(String friendUsername) async {
+  final url = Uri.parse('$_baseUrl/add_friend');
+
+  final token = await getToken();
+
+  final response = await http.post(
+    url,
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'friend_username': friendUsername,
+      'token': token,
+    }),
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    return data['message'] ?? 'Friend request sent.';
+  } else {
+    throw Exception(
+      'Failed to send friend request: ${response.statusCode}\n${response.body}',
+    );
+  }
+}
+
+Future<List<Map<String, dynamic>>> getFriendsList() async {
+  final url = Uri.parse('$_baseUrl/friends');
+
+  final response = await http.post(
+    url,
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({'token': await getToken()}),
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    return List<Map<String, dynamic>>.from(data['friends']);
+  } else {
+    throw Exception('Failed to load friends: ${response.statusCode}');
+  }
+}
 
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
