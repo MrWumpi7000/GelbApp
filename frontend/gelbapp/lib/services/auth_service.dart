@@ -237,6 +237,140 @@ Future<List<Map<String, dynamic>>> getFriendsList() async {
   }
 }
 
+Future<List<Map<String, dynamic>>> getOutgoingFriendRequests() async {
+  final url = Uri.parse('$_baseUrl/friend_requests/outgoing');
+  final token = await getToken();
+
+  final response = await http.post(
+    url,
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({'token': token}),
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    final requests = data['outgoing_requests'];
+    return List<Map<String, dynamic>>.from(requests);
+  } else {
+    throw Exception(
+      'Failed to load outgoing friend requests: ${response.statusCode}\n${response.body}',
+    );
+  }
+}
+
+Future<List<Map<String, dynamic>>> getIncomingFriendRequests() async {
+  final url = Uri.parse('$_baseUrl/friend_requests/incoming');
+  final token = await getToken();
+
+  final response = await http.post(
+    url,
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({'token': token}),
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    final requests = data['incoming_requests'];
+    return List<Map<String, dynamic>>.from(requests);
+  } else {
+    throw Exception(
+      'Failed to load incoming friend requests: ${response.statusCode}\n${response.body}',
+    );
+  }
+}
+
+Future<bool> acceptFriendRequest(int requestId) async {
+  final url = Uri.parse('$_baseUrl/accept_friend?request_id=$requestId');
+  final token = await getToken();
+
+  final response = await http.post(
+    url,
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({'token': token}),
+  );
+
+  if (response.statusCode == 200) {
+    return true;
+  } else {
+    throw Exception(
+      'Failed to accept friend request: ${response.statusCode}\n${response.body}',
+    );
+  }
+}
+
+Future<bool> rejectFriendRequest(int requestId) async {
+  final url = Uri.parse('$_baseUrl/reject_friend?request_id=$requestId');
+  final token = await getToken();
+
+  final response = await http.post(
+    url,
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({'token': token}),
+  );
+
+  if (response.statusCode == 200) {
+    return true;
+  } else {
+    throw Exception(
+      'Failed to reject friend request: ${response.statusCode}\n${response.body}',
+    );
+  }
+}
+
+Future<bool> cancelFriendRequest(int requestId) async {
+  final url = Uri.parse('$_baseUrl/cancel_friend_request?request_id=$requestId');
+  final token = await getToken();
+
+  final response = await http.post(
+    url,
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({'token': token}),
+  );
+
+  if (response.statusCode == 200) {
+    return true;
+  } else {
+    throw Exception(
+      'Failed to cancel friend request: ${response.statusCode}\n${response.body}',
+    );
+  }
+}
+Future<bool> removeFriend(int friendUserId) async {
+  final url = Uri.parse('$_baseUrl/remove_friend/$friendUserId');
+  final token = await getToken();
+
+  final request = http.Request('DELETE', url)
+    ..headers.addAll({
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    })
+    ..body = jsonEncode({'token': token});
+
+  final response = await request.send();
+
+  if (response.statusCode == 200) {
+    return true;
+  } else {
+    final responseBody = await response.stream.bytesToString();
+    throw Exception('Failed to remove friend: ${response.statusCode}\n$responseBody');
+  }
+}
+
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
