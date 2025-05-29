@@ -29,4 +29,4 @@ workflows:
     publishing:
       email:
         recipients:
-          - your-email@example.com
+          - jasper@grevsmuehl.net
