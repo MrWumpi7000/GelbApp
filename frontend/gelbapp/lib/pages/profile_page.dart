@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:gelbapp/widgets/base_scaffold.dart';
 import 'package:gelbapp/services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
 import 'package:gelbapp/widgets/custom_bottom_app_bar.dart';
 import 'dart:io' as io;
 
