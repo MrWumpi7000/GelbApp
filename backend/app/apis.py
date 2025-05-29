@@ -196,14 +196,25 @@ def add_friend(req: AddFriendRequest, db: Session = Depends(get_db)):
 
     # Check if friendship already exists in either direction
     existing_friendship = db.query(UserFriendship).filter(
-        ((UserFriendship.user_id == user.id) & (UserFriendship.friend_id == friend.id)) |
-        ((UserFriendship.user_id == friend.id) & (UserFriendship.friend_id == user.id))
+        (((UserFriendship.user_id == user.id) & (UserFriendship.friend_id == friend.id)) |
+        ((UserFriendship.user_id == friend.id) & (UserFriendship.friend_id == user.id))) &
+        (UserFriendship.status != "rejected")
     ).first()
+
 
     if existing_friendship:
         raise HTTPException(status_code=400, detail="Friend request already exists or you are already friends")
+    
+    rejected_friendship = db.query(UserFriendship).filter(
+        (((UserFriendship.user_id == user.id) & (UserFriendship.friend_id == friend.id)) |
+        ((UserFriendship.user_id == friend.id) & (UserFriendship.friend_id == user.id))) &
+        (UserFriendship.status == "rejected")
+    ).first()
 
-    # Create the friend request
+    if rejected_friendship:
+        db.delete(rejected_friendship)
+        db.commit()  # commit the delete before new insert
+        
     new_friendship = UserFriendship(user_id=user.id, friend_id=friend.id, status="pending")
     db.add(new_friendship)
     db.commit()
