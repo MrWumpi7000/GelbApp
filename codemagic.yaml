@@ -1,0 +1,32 @@
+workdir: frontend/gelbapp
+
+flutter:
+  version: stable
+
+workflows:
+  build-app:
+    name: Build GelbApp
+    environment:
+      vars:
+        FLUTTER_BUILD_NAME: 1.0.0
+        FLUTTER_BUILD_NUMBER: 1
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Build Android APK
+        script: flutter build apk --release
+
+      - name: Build iOS app
+        script: flutter build ios --release --no-codesign
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
+      - build/ios/iphoneos/Runner.app
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com
