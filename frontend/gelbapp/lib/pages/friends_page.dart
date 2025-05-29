@@ -15,6 +15,7 @@ class _FriendsPageState extends State<FriendsPage> {
   FriendRequestPollingService? _pollingService;
   StreamSubscription? _pollingSubscription;
 
+  List<Map<String, dynamic>> _friendsList = [];
   List<Map<String, dynamic>> _incomingRequests = [];
   List<Map<String, dynamic>> _outgoingRequests = [];
 
@@ -25,7 +26,6 @@ class _FriendsPageState extends State<FriendsPage> {
   bool _isLoading = false;
   Set<String> _sentRequests = {};
 
-  List<Map<String, dynamic>> _friendsList = [];
   bool _isLoadingFriends = true;
   bool _isExpanded = true;
 
@@ -47,6 +47,7 @@ class _FriendsPageState extends State<FriendsPage> {
     _pollingService!.startPolling();
     _pollingSubscription = _pollingService!.stream.listen((data) {
       setState(() {
+        _friendsList = data['friendlist'] ?? [];
         _incomingRequests = data['incoming'] ?? [];
         _outgoingRequests = data['outgoing'] ?? [];
       });
@@ -104,7 +105,7 @@ class _FriendsPageState extends State<FriendsPage> {
 
     try {
       final results = await authService.searchUsers(query);
-      final filtered = results.where((user) => user['status'] == 'none').toList();
+      final filtered = results.where((user) => user['status'] == 'none' || user['status'] == 'rejected').toList();
       setState(() {
         _searchResults = filtered;
       });

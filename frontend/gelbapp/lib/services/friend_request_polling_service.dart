@@ -19,10 +19,12 @@ class FriendRequestPollingService {
       try {
         final incoming = await AuthService().getIncomingFriendRequests();
         final outgoing = await AuthService().getOutgoingFriendRequests();
+        final friendlist = await AuthService().getFriendsList();
 
         _controller.add({
           'incoming': incoming,
           'outgoing': outgoing,
+          'friendlist': friendlist,
         });
       } catch (e) {
         print('Polling error: $e');
