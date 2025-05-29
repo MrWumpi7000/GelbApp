@@ -8,11 +8,13 @@ import 'pages/create_lobby_page.dart';
 import 'pages/login_page.dart';
 import 'pages/register_page.dart';
 import 'widgets/protected_page.dart';
+import 'services/handle_reload.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(MyApp());
+  ReloadHandler().init();
 }
 
 class MyApp extends StatelessWidget {

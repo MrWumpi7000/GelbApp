@@ -371,6 +371,34 @@ Future<bool> removeFriend(int friendUserId) async {
   }
 }
 
+  Future<bool> refreshUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+
+    if (token == null) {
+      return false;
+    }
+
+    final url = Uri.parse('$_baseUrl/whoami');
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({'token': token}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      await prefs.setString('username', data['username']);
+      await prefs.setString('email', data['email']);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');

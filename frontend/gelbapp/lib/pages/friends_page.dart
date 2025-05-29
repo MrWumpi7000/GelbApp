@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gelbapp/widgets/base_scaffold.dart';
+import 'dart:async';
 import '../services/auth_service.dart';
+import '../services/friend_request_polling_service.dart';
 
 class FriendsPage extends StatefulWidget {
   @override
@@ -10,7 +12,15 @@ class FriendsPage extends StatefulWidget {
 class _FriendsPageState extends State<FriendsPage> {
   final TextEditingController _searchController = TextEditingController();
 
+  FriendRequestPollingService? _pollingService;
+  StreamSubscription? _pollingSubscription;
+
+  List<Map<String, dynamic>> _incomingRequests = [];
+  List<Map<String, dynamic>> _outgoingRequests = [];
+
+
   List<Map<String, dynamic>> _searchResults = [];
+
   bool _isSearching = false;
   bool _isLoading = false;
   Set<String> _sentRequests = {};
@@ -20,9 +30,6 @@ class _FriendsPageState extends State<FriendsPage> {
   bool _isExpanded = true;
 
   // Friend request related states
-  List<Map<String, dynamic>> _incomingRequests = [];
-  List<Map<String, dynamic>> _outgoingRequests = [];
-  bool _isLoadingRequests = false;
   bool _mailPanelOpen = false;
 
   final AuthService authService = AuthService();
@@ -31,10 +38,19 @@ class _FriendsPageState extends State<FriendsPage> {
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      setState(() {}); // rebuild to show/hide clear icon in search
+      setState(() {});
     });
+
     _fetchFriendsList();
-    _fetchFriendRequests();
+
+    _pollingService = FriendRequestPollingService();
+    _pollingService!.startPolling();
+    _pollingSubscription = _pollingService!.stream.listen((data) {
+      setState(() {
+        _incomingRequests = data['incoming'] ?? [];
+        _outgoingRequests = data['outgoing'] ?? [];
+      });
+    });
   }
 
   Future<void> _fetchFriendsList() async {
@@ -57,9 +73,6 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   Future<void> _fetchFriendRequests() async {
-    setState(() {
-      _isLoadingRequests = true;
-    });
 
     try {
       final incoming = await authService.getIncomingFriendRequests();
@@ -71,10 +84,6 @@ class _FriendsPageState extends State<FriendsPage> {
       });
     } catch (e) {
       print('Error fetching friend requests: $e');
-    } finally {
-      setState(() {
-        _isLoadingRequests = false;
-      });
     }
   }
 
@@ -145,11 +154,14 @@ class _FriendsPageState extends State<FriendsPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+@override
+void dispose() {
+  _pollingSubscription?.cancel();
+  _pollingService?.stopPolling();
+  _searchController.dispose();
+  super.dispose();
+}
+
 
   Widget _buildMailRequestsView() {
     return Column(
@@ -401,12 +413,6 @@ class _FriendsPageState extends State<FriendsPage> {
                                                       trailing: Row(
                                                         mainAxisSize: MainAxisSize.min,
                                                         children: [
-                                                          IconButton(
-                                                            icon: Icon(Icons.message, color: Colors.white),
-                                                            onPressed: () {
-                                                              // Handle message button press
-                                                            },
-                                                          ),
                                                           IconButton(
                                                             icon: Icon(Icons.remove, color: Colors.red),
                                                             onPressed: () async {
