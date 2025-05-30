@@ -119,6 +119,8 @@ class AuthService {
 }
 
   Future<void> uploadProfilePictureMobile(io.File imageFile) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('image');
     final url = Uri.parse('$_baseUrl/upload_profile_picture');
     final token = await getToken();
     if (token == null) throw Exception('Token is null');
@@ -132,6 +134,11 @@ class AuthService {
       ));
 
     final response = await request.send();
+    if (response.statusCode == 200) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('image'); 
+      await getProfilePictureBytes();
+    }
     if (response.statusCode != 200) {
       throw Exception('Failed to upload profile picture');
     }
