@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query # type: ignore
 from fastapi.responses import StreamingResponse # type: ignore
 from sqlalchemy.orm import Session # type: ignore
-from sqlalchemy import or_ # type: ignore
+from sqlalchemy import or_, func # type: ignore
 from app.models import User, UserProfile, UserFriendship
 from app.utils import hash_password, verify_password, whoami, create_access_token
 from app.database import get_db
@@ -39,23 +39,24 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login_user(request: LoginRequest, db: Session = Depends(get_db)):
+    username_or_email_lower = request.username_or_email.lower()
+
     user = db.query(User).filter(
         or_(
-            User.username == request.username_or_email,
-            User.email == request.username_or_email
+            func.lower(User.username) == username_or_email_lower,
+            func.lower(User.email) == username_or_email_lower
         )
     ).first()
-    
+
     if not user:
         raise HTTPException(status_code=400, detail="Invalid username or password")
-    
+
     if not verify_password(request.password, user.password):
         raise HTTPException(status_code=400, detail="Invalid username or password")
-    
+
     access_token = create_access_token(data={"email": user.email})
-    
+
     return {"access_token": access_token, "token_type": "bearer"}
-    
 
 @router.post("/whoami")
 def whoami_endpoint(request: TokenRequest, db: Session = Depends(get_db)):
