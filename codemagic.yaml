@@ -13,6 +13,8 @@ workflows:
       flutter: stable
       xcode: latest
     scripts:
+      - name: Check current directory
+        script: pwd && ls -l
       - name: Get Flutter packages
         script: flutter pub get
 

@@ -117,7 +117,8 @@ class AuthService {
     throw Exception('Failed to load profile picture');
   }
 }
-    Future<void> uploadProfilePictureMobile(io.File imageFile) async {
+
+  Future<void> uploadProfilePictureMobile(io.File imageFile) async {
     final url = Uri.parse('$_baseUrl/upload_profile_picture');
     final token = await getToken();
     if (token == null) throw Exception('Token is null');

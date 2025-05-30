@@ -28,33 +28,32 @@ class _ProfilePageState extends State<ProfilePage> {
     _bottomBarKey.currentState?.refreshProfileImage();
   }
 
-  Future<void> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+Future<void> _pickAndUploadImage() async {
+  final picker = ImagePicker();
+  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile != null) {
-      try {
-        if (kIsWeb) {
-          final bytes = await pickedFile.readAsBytes();
-          await AuthService().uploadProfilePictureWeb(bytes, pickedFile.name);
-        } else {
-          final file = io.File(pickedFile.path);
-          await AuthService().uploadProfilePictureMobile(file);
-        }
-
-        // Reload image after upload
-        setState(() {
-          _bottomBarKey.currentState?.refreshProfileImage();
-          _userImageFuture = AuthService().getProfilePictureBytes();
-        });
-      } catch (e) {
-        print('Upload failed: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed')),
-        );
+  if (pickedFile != null) {
+    try {
+      if (kIsWeb) {
+        final bytes = await pickedFile.readAsBytes();
+        await AuthService().uploadProfilePictureWeb(bytes, pickedFile.name);
+      } else {
+        final file = io.File(pickedFile.path);
+        await AuthService().uploadProfilePictureMobile(file);
       }
+
+      setState(() {
+        _bottomBarKey.currentState?.refreshProfileImage();
+        _userImageFuture = AuthService().getProfilePictureBytes();
+      });
+    } catch (e) {
+      print('Upload failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed')),
+      );
     }
   }
+}
 
   Widget _buildProfileAvatar() {
     return FutureBuilder<ImageProvider>(
