@@ -2,11 +2,12 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Q
 from fastapi.responses import StreamingResponse # type: ignore
 from sqlalchemy.orm import Session # type: ignore
 from sqlalchemy import or_, func # type: ignore
-from app.models import User, UserProfile, UserFriendship
+from app.models import User, UserProfile, UserFriendship, Round, RoundPlayer, Gelbfeld
 from app.utils import hash_password, verify_password, whoami, create_access_token
 from app.database import get_db
-from app.schemas import RegisterRequest, TokenRequest, LoginRequest, BioRequest, AddFriendRequest, SearchUsersRequest
+from app.schemas import RegisterRequest, TokenRequest, CreateRoundInput, PlayerInput, AddPointInput, LoginRequest, BioRequest, AddFriendRequest, SearchUsersRequest
 from uuid import uuid4
+import datetime
 import os
 import shutil
 
@@ -381,8 +382,92 @@ def search_users(request: SearchUsersRequest, db: Session = Depends(get_db)):
 
     return users_with_status
 
-@router.get("/all_users")
-def get_all_users(db: Session = Depends(get_db)):
-    users = db.query(User).all()
-    users_data = db.query(UserProfile).all()
-    return {"users": users, "profiles": users_data}
+@router.post("/rounds/create")
+def create_round(data: CreateRoundInput, db: Session = Depends(get_db)):
+    print("Creating round with data:", data)
+    # Creator holen
+    email = whoami(data.token)
+    
+    if not email:
+        return {"error": "Invalid token"}
+
+    creator = db.query(User).filter_by(email=email).first()
+    if not creator:
+        return {"error": "Username not found for the provided token"}
+    
+    new_round = Round(name=data.name, creator_id=creator.id)
+    db.add(new_round)
+    db.flush()
+
+    creator_player = RoundPlayer(round_id=new_round.id, user_id=creator.id)
+    db.add(creator_player)
+
+    for player_data in data.players:
+        if player_data.user_id is not None:
+            user = db.query(User).filter_by(id=player_data.user_id).first()
+            if not user:
+                print(f"User with ID {player_data.user_id} not found, skipping player addition.")
+                continue
+            round_player = RoundPlayer(round_id=new_round.id, user_id=user.id)
+        elif player_data.guest_name:
+            round_player = RoundPlayer(round_id=new_round.id, guest_name=player_data.guest_name)
+        else:
+            continue 
+        db.add(round_player)
+
+    db.commit()
+
+    return {"message": "Created Round", "round_id": new_round.id}
+
+
+@router.post("/points/add")
+def add_point(data: AddPointInput, db: Session = Depends(get_db)):
+
+    valid_token = whoami(data.token)
+    if not valid_token:
+        return {"error": "Invalid token"}
+
+    player = db.query(RoundPlayer).filter_by(id=data.round_player_id).first()
+    if not player:
+        return {"error": "Player not found"}
+
+    if player.round_id != data.round_id:
+        return {"error": "Player does not belong to the specified round"}
+
+    player.points += 1
+
+    gelb = Gelbfeld(
+        round_id=data.round_id,
+        round_player_id=player.id
+    )
+    db.add(gelb)
+    db.commit()
+
+    return {
+        "message": "Point added",
+        "player_id": player.id,
+        "points": player.points
+    }
+
+@router.get("/rounds/{round_id}/scores")
+def get_scores(round_id: int, db: Session = Depends(get_db)):
+    round = db.query(Round).filter_by(id=round_id).first()
+    if not round:
+        return {"error": "Round not found"}
+
+    scores = []
+    for p in round.players:
+        if p.user:
+            scores.append({
+                "name": p.user.username,
+                "points": p.points,
+                "is_guest": False
+            })
+        else:
+            scores.append({
+                "name": p.guest_name,
+                "points": p.points,
+                "is_guest": True
+            })
+
+    return {"round_id": round_id, "scores": scores}
