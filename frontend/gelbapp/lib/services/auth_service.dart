@@ -407,6 +407,32 @@ Future<bool> removeFriend(int friendUserId) async {
     }
   }
 
+  Future<void> createRound({
+  required String name,
+  required List<Map<String, dynamic>> players,
+}) async {
+  final token = await getToken();
+  final url = Uri.parse('$_baseUrl/rounds/create');
+
+  final body = jsonEncode({
+    'name': name,
+    'token': token,
+    'players': players,
+  });
+
+  final response = await http.post(
+    url,
+    headers: {'Content-Type': 'application/json'},
+    body: body,
+  );
+
+  if (response.statusCode == 200) {
+    print('Round Created Successfully: ${response.body}');
+  } else {
+    throw Exception('Failed to create round: ${response.statusCode}');
+  }
+}
+
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
@@ -440,3 +466,5 @@ Future<Map<String, String>> getUserData() async {
     'email': email ?? '',
   };
 }
+
+

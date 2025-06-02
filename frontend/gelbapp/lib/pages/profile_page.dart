@@ -5,6 +5,7 @@ import 'package:gelbapp/services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:gelbapp/widgets/custom_bottom_app_bar.dart';
 import 'dart:io' as io;
+import 'package:permission_handler/permission_handler.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -29,6 +30,19 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
 Future<void> _pickAndUploadImage() async {
+  // Handle permissions first
+  if (!kIsWeb) {
+    final status = await Permission.photos.request(); // or Permission.storage on older devices
+
+    if (!status.isGranted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Permission denied')),
+      );
+      return;
+    }
+  }
+
+  // Now pick the image
   final picker = ImagePicker();
   final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
