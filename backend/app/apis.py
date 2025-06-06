@@ -395,6 +395,17 @@ def create_round(data: CreateRoundInput, db: Session = Depends(get_db)):
     if not creator:
         return {"error": "Username not found for the provided token"}
     
+    already_exists = db.query(Round).filter_by(name=data.name, creator_id=creator.id).first()
+    if already_exists:
+        return {"error": "A round with this name already exists for this user"}
+    
+    player_already_exists = db.query(RoundPlayer).filter(
+        (RoundPlayer.guest_name == data.name) | 
+        (RoundPlayer.user_id == creator.id) & (RoundPlayer.round.has(name=data.name))
+    ).first()
+    if player_already_exists:
+        return {"error": "A player with this name already exists in a round for this user"}
+    
     new_round = Round(name=data.name, creator_id=creator.id)
     db.add(new_round)
     db.flush()
@@ -467,7 +478,21 @@ def get_scores(round_id: int, db: Session = Depends(get_db)):
             scores.append({
                 "name": p.guest_name,
                 "points": p.points,
-                "is_guest": True
+                "is_guest": True,
+                "round_name": round.name
             })
 
     return {"round_id": round_id, "scores": scores}
+@router.delete("/rounds/{round_id}/delete")
+def delete_round(round_id: int, token_request: str, db: Session = Depends(get_db)):
+    round = db.query(Round).filter_by(id=round_id).first()
+    if not round:
+        return {"error": "Round not found"}
+    print(token)
+    if token_request != round.creator_id:
+        return {"error": "You are not authorized to delete this round"}
+    
+    db.delete(round)
+    db.commit()
+
+    return {"message": "Round deleted"}
