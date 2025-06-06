@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import List, Optional
 
 class RegisterRequest(BaseModel):
     username: str
@@ -22,3 +23,17 @@ class AddFriendRequest(BaseModel):
 
 class SearchUsersRequest(TokenRequest):
     query: str
+    
+class PlayerInput(BaseModel):
+    user_id: Optional[int] = None  # Wenn Freund
+    guest_name: Optional[str] = None  # Wenn Gast
+
+class CreateRoundInput(BaseModel):
+    name: str
+    token: str
+    players: List[PlayerInput]
+
+class AddPointInput(BaseModel):
+    round_id: int
+    round_player_id: int
+    token: str

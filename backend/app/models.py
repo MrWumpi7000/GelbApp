@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, DateTime, Boolean
 from app.database import Base
 from sqlalchemy.orm import relationship
+import datetime
 
 class User(Base):
     __tablename__ = 'users'
@@ -11,7 +12,7 @@ class User(Base):
     password = Column(String)
 
     profile = relationship("UserProfile", back_populates="user", uselist=False)
-
+    round_participations = relationship("RoundPlayer", back_populates="user")
     # Friendships initiated by this user
     friends = relationship(
         "UserFriendship",
@@ -54,3 +55,39 @@ class UserFriendship(Base):
     __table_args__ = (
         UniqueConstraint('user_id', 'friend_id', name='uq_user_friend'),
     )
+
+class Round(Base):
+    __tablename__ = "rounds"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+
+    players = relationship("RoundPlayer", back_populates="round")
+    gelbfelder = relationship("Gelbfeld", back_populates="round")
+
+class RoundPlayer(Base):
+    __tablename__ = "round_players"
+
+    id = Column(Integer, primary_key=True)
+    round_id = Column(Integer, ForeignKey("rounds.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Wenn Freund
+    guest_name = Column(String, nullable=True)  # Wenn Gast
+    points = Column(Integer, default=0)
+
+    round = relationship("Round", back_populates="players")
+    user = relationship("User", back_populates="round_participations", foreign_keys=[user_id])
+    gelbfelder = relationship("Gelbfeld", back_populates="player")
+
+class Gelbfeld(Base):
+    __tablename__ = "gelbfelds"
+
+    id = Column(Integer, primary_key=True)
+    round_id = Column(Integer, ForeignKey("rounds.id"), nullable=False)
+    round_player_id = Column(Integer, ForeignKey("round_players.id"), nullable=False)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
+    round = relationship("Round", back_populates="gelbfelder")
+    player = relationship("RoundPlayer", back_populates="gelbfelder")
