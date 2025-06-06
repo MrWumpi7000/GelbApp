@@ -9,6 +9,7 @@ import 'pages/login_page.dart';
 import 'pages/register_page.dart';
 import 'widgets/protected_page.dart';
 import 'services/handle_reload.dart';
+import 'pages/play_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,9 +62,24 @@ class MyApp extends StatelessWidget {
           settings: settings,
         );
       default:
-        return null;
+        if (settings.name != null && settings.name!.startsWith('/play/')) {
+          final idStr = settings.name!.split('/play/').last;
+          final roundId = int.tryParse(idStr);
+          if (roundId != null) {
+            return MaterialPageRoute(
+              builder: (_) => ProtectedPage(child: PlayPage(roundId: roundId)),
+              settings: settings,
+            );
+          }
+          return null;
+        }
+        return MaterialPageRoute(
+        builder: (_) => Scaffold(
+          body: Center(child: Text('Page not found')),
+        ),
+      );
+      }
     }
-  }
 
   PageRoute _noAnimationRoute(Widget page, RouteSettings settings) {
     return PageRouteBuilder(

@@ -407,7 +407,7 @@ Future<bool> removeFriend(int friendUserId) async {
     }
   }
 
-  Future<void> createRound({
+ Future<Map<String, dynamic>> createRound({
   required String name,
   required List<Map<String, dynamic>> players,
 }) async {
@@ -428,8 +428,28 @@ Future<bool> removeFriend(int friendUserId) async {
 
   if (response.statusCode == 200) {
     print('Round Created Successfully: ${response.body}');
+    return jsonDecode(response.body);
   } else {
     throw Exception('Failed to create round: ${response.statusCode}');
+  }
+}
+
+
+Future<Map<String, dynamic>> fetchRoundScores(int roundId) async {
+  final url = Uri.parse('$_baseUrl/rounds/$roundId/scores');
+
+  final response = await http.get(
+    url,
+    headers: {
+      'accept': 'application/json',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    print('Fetched Round Scores: ${response.body}');
+    return jsonDecode(response.body);
+  } else {
+    throw Exception('Failed to fetch round scores: ${response.statusCode}');
   }
 }
 

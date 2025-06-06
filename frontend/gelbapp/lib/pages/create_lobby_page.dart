@@ -69,18 +69,38 @@ class _CreateLobbyPageState extends State<CreateLobbyPage> {
     });
   }
 
-  void _createLobby() async {
-    if (!_formKey.currentState!.validate()) return;
+void _createLobby() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    await AuthService().createRound(
-      name: _nameController.text.trim(),
-      players: _players.map((p) => p.toJson()).toList(),
-    );
+  final response = await AuthService().createRound(
+    name: _nameController.text.trim(),
+    players: _players.map((p) => p.toJson()).toList(),
+  );
 
+  if (response.containsKey('error')) {
+    // Show error if response has an 'error' key
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Lobby created!')),
+      SnackBar(
+        content: Text(response['error']),
+        backgroundColor: Colors.red,
+      ),
+    );
+  } else if (response.containsKey('round_id')) {
+    final roundId = response['round_id'];
+
+    // Navigate to the play page with the round id
+    Navigator.pushReplacementNamed(context, '/play/$roundId');
+  } else {
+    // Fallback in case of unexpected response
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Unexpected error occurred.'),
+        backgroundColor: Colors.red,
+      ),
     );
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
