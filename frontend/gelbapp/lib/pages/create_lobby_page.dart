@@ -19,6 +19,7 @@ class CreateLobbyPage extends StatefulWidget {
 }
 
 class _CreateLobbyPageState extends State<CreateLobbyPage> {
+  bool flag = false;
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _guestController = TextEditingController();
   Map<String, dynamic>? _selectedFriend;
@@ -89,7 +90,7 @@ void _createLobby() async {
     final roundId = response['round_id'];
 
     // Navigate to the play page with the round id
-    Navigator.pushReplacementNamed(context, '/play/$roundId');
+    Navigator.pushReplacementNamed(context, '/play/$roundId/$flag');
   } else {
     // Fallback in case of unexpected response
     ScaffoldMessenger.of(context).showSnackBar(
@@ -150,7 +151,18 @@ void _createLobby() async {
                         ),
                       ),
                       SizedBox(height: 20),
-                      // Friend Dropdown
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Microphone Enabled',
+                              style: TextStyle(color: Colors.white, fontSize: 15)),
+                          Transform.scale(
+                            scale: 0.8,
+                            child: Switch(activeColor: Color(0xFFFEDD37), value: flag, onChanged: null),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20),
                       Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [

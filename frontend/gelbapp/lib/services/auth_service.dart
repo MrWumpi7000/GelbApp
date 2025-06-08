@@ -446,10 +446,33 @@ Future<Map<String, dynamic>> fetchRoundScores(int roundId) async {
   );
 
   if (response.statusCode == 200) {
-    print('Fetched Round Scores: ${response.body}');
     return jsonDecode(response.body);
   } else {
     throw Exception('Failed to fetch round scores: ${response.statusCode}');
+  }
+}
+
+ Future<void> changeScores({
+  required int roundId,
+  required int roundPlayerId
+}) async {
+  final token = await getToken();
+  final url = Uri.parse('$_baseUrl/points/add');
+
+  final body = jsonEncode({
+    'round_id': roundId,
+    'round_player_id': roundPlayerId,
+    'token': token,
+  });
+
+  final response = await http.post(
+    url,
+    headers: {'Content-Type': 'application/json'},
+    body: body,
+  );
+
+  if (response.statusCode != 200) {
+    throw Exception('Failed to change scores: ${response.statusCode}');
   }
 }
 

@@ -63,13 +63,20 @@ class MyApp extends StatelessWidget {
         );
       default:
         if (settings.name != null && settings.name!.startsWith('/play/')) {
-          final idStr = settings.name!.split('/play/').last;
-          final roundId = int.tryParse(idStr);
-          if (roundId != null) {
-            return MaterialPageRoute(
-              builder: (_) => ProtectedPage(child: PlayPage(roundId: roundId)),
+          final uri = Uri.parse(settings.name!);
+          final segments = uri.pathSegments;
+
+          if (segments.length >= 3 && segments[0] == 'play') {
+            final roundId = int.tryParse(segments[1]);
+            final flagStr = segments[2].toLowerCase();
+            final flag = flagStr == 'true';
+
+            if (roundId != null) {
+              return MaterialPageRoute(
+              builder: (_) => ProtectedPage(child: PlayPage(roundId: roundId, flag: flag)),
               settings: settings,
             );
+            }
           }
           return null;
         }
