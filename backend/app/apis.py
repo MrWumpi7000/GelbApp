@@ -462,6 +462,9 @@ def add_point(data: AddPointInput, db: Session = Depends(get_db)):
 
 @router.get("/rounds/{round_id}/scores")
 def get_scores(round_id: int, db: Session = Depends(get_db)):
+    gelbfields = len(db.query(Gelbfeld).filter_by(round_id=round_id).all())
+
+
     round = db.query(Round).filter_by(id=round_id).first()
     if not round:
         return {"error": "Round not found"}
@@ -472,17 +475,19 @@ def get_scores(round_id: int, db: Session = Depends(get_db)):
             scores.append({
                 "name": p.user.username,
                 "points": p.points,
+                "player_id": p.id,
                 "is_guest": False
             })
         else:
             scores.append({
                 "name": p.guest_name,
                 "points": p.points,
+                "player_id": p.id,
                 "is_guest": True,
-                "round_name": round.name
             })
 
-    return {"round_id": round_id, "scores": scores}
+    return {"round_id": round_id,"field_count":gelbfields ,"round_name": round.name,"player_count": len(round.players),"scores": scores}
+
 @router.delete("/rounds/{round_id}/delete")
 def delete_round(round_id: int, token_request: str, db: Session = Depends(get_db)):
     round = db.query(Round).filter_by(id=round_id).first()
