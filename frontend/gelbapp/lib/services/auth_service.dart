@@ -3,9 +3,12 @@ import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io' as io;
+import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:http_parser/http_parser.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class AuthService {
   final String _baseUrl = 'http://awesom-o.org:8000';
@@ -475,6 +478,100 @@ Future<Map<String, dynamic>> fetchRoundScores(int roundId) async {
     throw Exception('Failed to change scores: ${response.statusCode}');
   }
 }
+
+Future<Map<String, dynamic>> getLatestGitHubRelease({bool includePreRelease = false}) async {
+  final url = Uri.parse('https://api.github.com/repos/MrWumpi7000/GelbApp/releases');
+  final headers = {
+    'Accept': 'application/vnd.github.v3+json',
+  };
+  final response = await http.get(url, headers: headers);
+
+  if (response.statusCode == 200) {
+    final List<dynamic> releases = jsonDecode(response.body);
+
+    Map<String, dynamic>? latestStable;
+    Map<String, dynamic>? latestPreRelease;
+
+    for (final release in releases) {
+      final Map<String, dynamic> rel = release;
+      if (rel['draft'] == false) {
+        if (rel['prerelease'] == false && latestStable == null) {
+          latestStable = rel;
+        } else if (rel['prerelease'] == true && latestPreRelease == null) {
+          latestPreRelease = rel;
+        }
+
+        // Stop early if both found
+        if (latestStable != null && latestPreRelease != null) break;
+      }
+    }
+
+    if (includePreRelease && latestPreRelease != null) {
+      return latestPreRelease;
+    } else if (latestStable != null) {
+      return latestStable;
+    } else {
+      throw Exception('No valid release found');
+    }
+  } else {
+    throw Exception('Failed to fetch releases: ${response.statusCode}');
+  }
+}
+
+Future<void> toggleBetaTester({required bool value}) async {
+  final prefs = await SharedPreferences.getInstance();
+  final response = await http.post(
+    Uri.parse('$_baseUrl/profile/change/is_beta_tester'),
+    headers: {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'token': await getToken(),
+      'is_beta_tester': value,
+    }),
+  );
+
+  prefs.setBool('is_beta_tester', value);
+  if (response.statusCode != 200) {
+      throw Exception('Failed to toggle beta tester status: ${response.statusCode}');
+    }
+}
+
+Future<bool> isBetaTester() async {
+  final prefs = await SharedPreferences.getInstance();
+  final url = Uri.parse('$_baseUrl/profile/is_beta_tester');
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'token': await getToken(),
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final isBeta = data['is_beta_tester'] ?? false;
+
+      // Save to shared preferences
+      prefs.setBool('is_beta_tester', isBeta);
+
+      // Return as bool
+      return isBeta is bool ? isBeta : false;
+    }
+  } catch (e) {
+    // Optionally handle/log error
+  }
+
+  // Fallback to stored value or false
+  return prefs.getBool('is_beta_tester') ?? false;
+}
+
 
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();

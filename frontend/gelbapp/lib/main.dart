@@ -10,18 +10,24 @@ import 'pages/register_page.dart';
 import 'widgets/protected_page.dart';
 import 'services/handle_reload.dart';
 import 'pages/play_page.dart';
+import 'services/version_checker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(MyApp());
   ReloadHandler().init();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+  checkForUpdateAndShow();
+});
 }
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'GelbApp',
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFFEDD37),
@@ -33,6 +39,9 @@ class MyApp extends StatelessWidget {
   }
 
   Route<dynamic>? _getRoute(RouteSettings settings) {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('Navigator', navigatorKey.currentContext.toString());
+    });
     switch (settings.name) {
       // Routes without animation:
       case '/':

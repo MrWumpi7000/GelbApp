@@ -5,6 +5,7 @@ import 'package:gelbapp/services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:gelbapp/widgets/custom_bottom_app_bar.dart';
 import 'dart:io' as io;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -21,12 +22,46 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadUserData();
-  }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bottomBarKey.currentState?.refreshProfileImage();
+  });
+}
 
   void _loadUserData() {
     _userImageFuture = AuthService().getProfilePictureBytes();
     _userDataFuture = getUserData();
     _bottomBarKey.currentState?.refreshProfileImage();
+  }
+Future<void> change_isBetaTester(bool value) async {
+  final currentVersion = (await PackageInfo.fromPlatform()).version;
+
+  if (value == false && (currentVersion.endsWith('beta') || currentVersion.endsWith('alpha'))) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text("Update Available"),
+          content: Text(
+            "Be careful! You have $currentVersion, which is a beta or alpha version. "
+            "Please update to the latest stable version before disabling beta testing.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Ok"),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Log or handle error where context is unexpectedly null
+      debugPrint('Cannot show dialog: navigatorKey.currentContext is null');
+    }
+    if (value == true && !(currentVersion.endsWith('beta') || !currentVersion.endsWith('alpha'))) {
+      final authService = AuthService();
+      await authService.toggleBetaTester(value: value);
+      setState(() {});
+    }	
   }
 
 Future<void> _pickAndUploadImage() async {
@@ -203,24 +238,13 @@ Future<void> _pickAndUploadImage() async {
                               thickness: 1,
                             ),
                             const SizedBox(height: 10),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, '/settings');
-                                },
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size(0, 0),
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  alignment: Alignment.centerLeft,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.settings, color: Colors.white),
-                                    const SizedBox(width: 10),
-                                    const Text(
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Icons.settings, color: Colors.white),
+                                    title: const Text(
                                       'Settings',
                                       style: TextStyle(
                                         color: Colors.white,
@@ -228,10 +252,44 @@ Future<void> _pickAndUploadImage() async {
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                  ],
+                                    onTap: () {
+                                      Navigator.pushNamed(context, '/settings');
+                                    },
+                                  ),
                                 ),
-                              ),
-                            ),
+                                FutureBuilder<bool>(
+                                  future: AuthService().isBetaTester(),
+                                  builder: (context, snapshot) {
+                                    if (!snapshot.hasData) {
+                                      return const SizedBox(
+                                        width: 40,
+                                        height: 40,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      );
+                                    }
+                                    return Transform.scale(
+                                      scale: 0.8,
+                                      child: Row(
+                                        children: [
+                                          const Text(
+                                            'Beta Tester',
+                                            style: TextStyle(color: Colors.white, fontSize: 16),
+                                          ),
+                                          Switch(
+                                            activeColor: Colors.yellow,
+                                            value: snapshot.data!,
+                                            onChanged: (value) async {
+                                              await change_isBetaTester(value);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),                        
+
                             const SizedBox(height: 10),
                             Divider(
                               color: Colors.grey[400],
