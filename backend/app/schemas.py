@@ -37,3 +37,7 @@ class AddPointInput(BaseModel):
     round_id: int
     round_player_id: int
     token: str
+
+class BetaTesterRequest(BaseModel):
+    token: str
+    is_beta_tester: bool
