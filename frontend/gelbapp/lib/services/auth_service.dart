@@ -10,6 +10,75 @@ import 'package:http_parser/http_parser.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+class LeaderboardEntry {
+  final String username;
+  final int totalPoints;
+  final int roundsPlayed;
+  final int bestSingleRound;
+
+  LeaderboardEntry({
+    required this.username,
+    required this.totalPoints,
+    required this.roundsPlayed,
+    required this.bestSingleRound,
+  });
+
+  factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
+    return LeaderboardEntry(
+      username: json['username'],
+      totalPoints: json['total_points'],
+      roundsPlayed: json['rounds_played'],
+      bestSingleRound: json['best_single_round'],
+    );
+  }
+}
+
+class UserStatistics {
+  final String username;
+  final int totalRounds;
+  final int totalPoints;
+  final int totalGelbfelder;
+  final int bestScoreInRound;
+
+  UserStatistics({
+    required this.username,
+    required this.totalRounds,
+    required this.totalPoints,
+    required this.totalGelbfelder,
+    required this.bestScoreInRound,
+  });
+
+  factory UserStatistics.fromJson(Map<String, dynamic> json) {
+    return UserStatistics(
+      username: json['username'],
+      totalRounds: json['total_rounds'],
+      totalPoints: json['total_points'],
+      totalGelbfelder: json['total_gelbfelder'],
+      bestScoreInRound: json['best_score_in_round'],
+    );
+  }
+}
+
+class RoundHistory {
+  final String roundName;
+  final int points;
+  final DateTime date;
+
+  RoundHistory({
+    required this.roundName,
+    required this.points,
+    required this.date,
+  });
+
+  factory RoundHistory.fromJson(Map<String, dynamic> json) {
+    return RoundHistory(
+      roundName: json['round_name'],
+      points: json['points'],
+      date: DateTime.parse(json['date']),
+    );
+  }
+}
+
 class AuthService {
   final String _baseUrl = 'http://awesom-o.org:8000';
 
@@ -572,6 +641,87 @@ Future<bool> isBetaTester() async {
   return prefs.getBool('is_beta_tester') ?? false;
 }
 
+  Future<bool> deactivateRound({
+    required int roundId,
+  }) async {
+    final url = Uri.parse('$_baseUrl/rounds/$roundId/deactivate');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'token': await getToken()}),
+    );
+
+    if (response.statusCode == 200) {
+      // Success
+      print('Round deactivated successfully');
+      return true;
+    } else {
+      // Failure
+      print('Failed to deactivate round: ${response.statusCode} - ${response.body}');
+      return false;
+    }
+  }
+
+  Future<List<RoundHistory>> fetchUserHistoryRounds() async {
+    final url = Uri.parse('$_baseUrl/statistics/my_rounds');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'token': await getToken()}),
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      final rounds = decoded['rounds'] as List;
+      return rounds.map((e) => RoundHistory.fromJson(e)).toList();
+    } else {
+      throw Exception('Failed to load round statistics: ${response.body}');
+    }
+  }
+
+
+Future<UserStatistics?> fetchUserStatistics() async {
+  try {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/statistics/me'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': await getToken()}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return UserStatistics.fromJson(data);
+    } else {
+      throw Exception('Failed to fetch statistics: ${response.body}');
+    }
+  } catch (e) {
+    print('Error fetching user statistics: $e');
+    return null;
+  }
+}
+  Future<List<LeaderboardEntry>> fetchLeaderboard() async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/statistics/leaderboard'),
+      headers: {'accept': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final List<dynamic> leaderboardJson = data['leaderboard'];
+      return leaderboardJson
+          .map((entry) => LeaderboardEntry.fromJson(entry))
+          .toList();
+    } else {
+      throw Exception('Failed to load leaderboard');
+    }
+  }
 
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();

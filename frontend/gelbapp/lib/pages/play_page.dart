@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
+import 'home_page.dart';
 
 class PlayPage extends StatefulWidget {
   final int roundId;
@@ -23,6 +24,11 @@ class _PlayPageState extends State<PlayPage> {
     setState(() {
       fetchedScores = scores;
     });
+  }
+  Future<void> _deactivateRound() async {
+    final authService = AuthService();
+    await authService.deactivateRound(roundId: widget.roundId);
+    Navigator.push(context, MaterialPageRoute(builder: (context) => HomePage()));
   }
 
   Future<void> _changeScores(int roundPlayerId) async {
@@ -66,7 +72,12 @@ class _PlayPageState extends State<PlayPage> {
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                     children: [
-                      Text("Lobby Name: ${fetchedScores!['round_name']}", style: TextStyle(color: Colors.white, fontSize: 20)),
+                      Row(
+                        children: [
+                          IconButton(onPressed: _deactivateRound, icon: Icon(Icons.close, color: Colors.white)),
+                          Text("Lobby Name: ${fetchedScores!['round_name']}", style: TextStyle(color: Colors.white, fontSize: 20)),
+                        ],
+                      ),
                       SizedBox(height: 20),
                       Container(
                       decoration: BoxDecoration(
