@@ -4,8 +4,15 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:version/version.dart';
 import 'package:gelbapp/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+String sanitizeVersion(String version) {
+  // Remove build metadata like "+7", keep pre-release like "-alpha"
+  return version.split('+').first;
+}
 
 Future<void> checkForUpdateAndShow() async {
   final context = navigatorKey.currentContext;
@@ -13,46 +20,71 @@ Future<void> checkForUpdateAndShow() async {
 
   try {
     final packageInfo = await PackageInfo.fromPlatform();
-    final currentVersion = packageInfo.version;
+    final currentVersion = Version.parse(packageInfo.version.split('+').first);
+    final isCurrentPre = currentVersion.isPreRelease;
 
-    final authService = AuthService();
     final prefs = await SharedPreferences.getInstance();
-    // Use setting or user preference to decide:
-    final isBetaTester = prefs.getBool('isBetaTester') ?? await authService.isBetaTester();
+    final isBetaTester = prefs.getBool('isBetaTester') ??
+        await AuthService().isBetaTester();
 
-    final release = await authService.getLatestGitHubRelease(
-      includePreRelease: isBetaTester,
-    );
+    final releaseMap = await AuthService().getLatestGitHubReleasePair();
 
-    final latest = release['tag_name'].toString().replaceFirst('v', '');
+    final stableRelease = releaseMap['latestStable'];
+    final preRelease = releaseMap['latestPre'];
 
-    var githubReleasesUrl = release['assets'][0]['browser_download_url'].toString();
+    Version? latestVersion;
+    Map<String, dynamic>? latestRelease;
 
-    if (Version.parse(latest) > Version.parse(currentVersion)) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text("Update Available"),
-          content: Text("New version $latest available. You have $currentVersion."),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                final uri = Uri.parse(githubReleasesUrl);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri);
+    if (isBetaTester && preRelease != null) {
+      final preVer = Version.parse((preRelease['tag_name'] as String).replaceFirst('v', '').split('+').first);
+      latestVersion = preVer;
+      latestRelease = preRelease;
+    }
+
+    if (stableRelease != null) {
+      final stableVer = Version.parse((stableRelease['tag_name'] as String).replaceFirst('v', '').split('+').first);
+      if (latestVersion == null || stableVer > latestVersion) {
+        latestVersion = stableVer;
+        latestRelease = stableRelease;
+      }
+    }
+
+    if (latestVersion != null && latestVersion > currentVersion && latestRelease != null) {
+      final assetList = latestRelease['assets'] as List<dynamic>;
+      print(assetList.last['browser_download_url'].toString());
+      final assetUrl = assetList.isNotEmpty
+          ? assetList.first['browser_download_url'].toString()
+          : null;
+
+      if (assetUrl != null) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Text("Update Available"),
+            content: Text(
+              "New version ${latestRelease?['tag_name']} is available. "
+              "You have ${packageInfo.version}.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  final uri = Uri.parse(assetUrl);
+                  if (!kIsWeb && Platform.isAndroid && await canLaunchUrl(uri)) {
+                    await launchUrl(uri);
+                  }
                   Navigator.of(context).pop();
-                }
-              },
-              child: const Text("Update"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Later"),
-            ),
-          ],
-        ),
-      );
+                },
+                child: const Text("Update"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("Later"),
+              ),
+            ],
+          ),
+        );
+      }
     }
   } catch (e) {
     debugPrint("Version check failed: $e");

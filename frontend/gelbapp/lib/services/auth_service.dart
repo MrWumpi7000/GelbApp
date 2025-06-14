@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:http_parser/http_parser.dart';
+import 'package:version/version.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -548,45 +549,57 @@ Future<Map<String, dynamic>> fetchRoundScores(int roundId) async {
   }
 }
 
-Future<Map<String, dynamic>> getLatestGitHubRelease({bool includePreRelease = false}) async {
+Future<Map<String, dynamic>> getLatestGitHubReleasePair() async {
   final url = Uri.parse('https://api.github.com/repos/MrWumpi7000/GelbApp/releases');
   final headers = {
     'Accept': 'application/vnd.github.v3+json',
   };
   final response = await http.get(url, headers: headers);
 
-  if (response.statusCode == 200) {
-    final List<dynamic> releases = jsonDecode(response.body);
-
-    Map<String, dynamic>? latestStable;
-    Map<String, dynamic>? latestPreRelease;
-
-    for (final release in releases) {
-      final Map<String, dynamic> rel = release;
-      if (rel['draft'] == false) {
-        if (rel['prerelease'] == false && latestStable == null) {
-          latestStable = rel;
-        } else if (rel['prerelease'] == true && latestPreRelease == null) {
-          latestPreRelease = rel;
-        }
-
-        // Stop early if both found
-        if (latestStable != null && latestPreRelease != null) break;
-      }
-    }
-
-    if (includePreRelease && latestPreRelease != null) {
-      return latestPreRelease;
-    } else if (latestStable != null) {
-      return latestStable;
-    } else {
-      throw Exception('No valid release found');
-    }
-  } else {
+  if (response.statusCode != 200) {
     throw Exception('Failed to fetch releases: ${response.statusCode}');
   }
-}
 
+  final List<dynamic> releases = jsonDecode(response.body);
+
+  Map<String, dynamic>? latestStable;
+  Map<String, dynamic>? latestPreRelease;
+  Version? latestStableVersion;
+  Version? latestPreVersion;
+
+  for (final release in releases) {
+    if (release['draft'] == true) continue;
+
+    final String tag = release['tag_name'] ?? '';
+    if (!tag.startsWith('v')) continue;
+
+    final versionStr = tag.replaceFirst('v', '').split('+').first;
+
+    try {
+      final version = Version.parse(versionStr);
+      final isPreRelease = release['prerelease'] ?? false;
+
+      if (isPreRelease) {
+        if (latestPreVersion == null || version > latestPreVersion) {
+          latestPreVersion = version;
+          latestPreRelease = release;
+        }
+      } else {
+        if (latestStableVersion == null || version > latestStableVersion) {
+          latestStableVersion = version;
+          latestStable = release;
+        }
+      }
+    } catch (_) {
+      continue; // Skip malformed versions
+    }
+  }
+
+  return {
+    'latestStable': latestStable,
+    'latestPre': latestPreRelease,
+  };
+}
 Future<void> toggleBetaTester({required bool value}) async {
   final prefs = await SharedPreferences.getInstance();
   final response = await http.post(

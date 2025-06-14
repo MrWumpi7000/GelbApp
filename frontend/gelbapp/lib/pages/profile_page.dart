@@ -7,6 +7,8 @@ import 'package:gelbapp/widgets/custom_bottom_app_bar.dart';
 import 'dart:io' as io;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:version/version.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -24,85 +26,98 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadUserData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bottomBarKey.currentState?.refreshProfileImage();
-  });
-}
+    });
+  }
 
   void _loadUserData() {
     _userImageFuture = AuthService().getProfilePictureBytes();
     _userDataFuture = getUserData();
-    _bottomBarKey.currentState?.refreshProfileImage();
   }
+
 Future<void> change_isBetaTester(bool value) async {
-  final currentVersion = (await PackageInfo.fromPlatform()).version;
+  final currentVersionRaw = (await PackageInfo.fromPlatform()).version;
+  final current = Version.parse(currentVersionRaw.split('+').first);
+  final pre = current.preRelease;
 
-  if (value == false && (currentVersion.endsWith('beta') || currentVersion.endsWith('alpha'))) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text("Update Available"),
-          content: Text(
-            "Be careful! You have $currentVersion, which is a beta or alpha version. "
-            "Please update to the latest stable version before disabling beta testing.",
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Ok"),
-            ),
-          ],
+  final isActualPreRelease = pre.isNotEmpty && pre.any((p) =>
+      p.toString().toLowerCase().contains('alpha') ||
+      p.toString().toLowerCase().contains('beta') ||
+      p.toString().toLowerCase().contains('rc'));
+
+  if (!value && isActualPreRelease) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text("Update Available"),
+        content: Text(
+          "Be careful! You have $currentVersionRaw, a beta/alpha version. "
+          "Please update to the latest stable version before disabling beta.",
         ),
-      );
-    } else {
-      // Log or handle error where context is unexpectedly null
-      debugPrint('Cannot show dialog: navigatorKey.currentContext is null');
-    }
-    if (value == true && !(currentVersion.endsWith('beta') || !currentVersion.endsWith('alpha'))) {
-      final authService = AuthService();
-      await authService.toggleBetaTester(value: value);
-      setState(() {});
-    }	
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Ok"),
+          ),
+        ],
+      ),
+    );
+    return;
   }
 
-Future<void> _pickAndUploadImage() async {
-  // Handle permissions first
-  if (!kIsWeb) {
-    final status = await Permission.photos.request(); // or Permission.storage on older devices
-
-    if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Permission denied')),
-      );
-      return;
-    }
-  }
-
-  // Now pick the image
-  final picker = ImagePicker();
-  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-  if (pickedFile != null) {
-    try {
-      if (kIsWeb) {
-        final bytes = await pickedFile.readAsBytes();
-        await AuthService().uploadProfilePictureWeb(bytes, pickedFile.name);
-      } else {
-        final file = io.File(pickedFile.path);
-        await AuthService().uploadProfilePictureMobile(file);
-      }
-
-      setState(() {
-        _bottomBarKey.currentState?.refreshProfileImage();
-        _userImageFuture = AuthService().getProfilePictureBytes();
-      });
-    } catch (e) {
-      print('Upload failed: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed')),
-      );
-    }
+  final auth = AuthService();
+  try {
+    await auth.toggleBetaTester(value: value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isBetaTester', value);
+    if (!mounted) return;
+    setState(() {});
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to change beta setting: $e')),
+    );
   }
 }
+
+
+  Future<void> _pickAndUploadImage() async {
+    if (!kIsWeb) {
+      final status = await Permission.photos.request();
+      if (!status.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Permission denied')),
+        );
+        return;
+      }
+    }
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      try {
+        if (kIsWeb) {
+          final bytes = await pickedFile.readAsBytes();
+          await AuthService().uploadProfilePictureWeb(bytes, pickedFile.name);
+        } else {
+          final file = io.File(pickedFile.path);
+          await AuthService().uploadProfilePictureMobile(file);
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _bottomBarKey.currentState?.refreshProfileImage();
+          _userImageFuture = AuthService().getProfilePictureBytes();
+        });
+      } catch (e) {
+        print('Upload failed: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed')),
+        );
+      }
+    }
+  }
 
   Widget _buildProfileAvatar() {
     return FutureBuilder<ImageProvider>(
@@ -288,12 +303,25 @@ Future<void> _pickAndUploadImage() async {
                                   },
                                 ),
                               ],
-                            ),                        
-
+                            ),
                             const SizedBox(height: 10),
                             Divider(
                               color: Colors.grey[400],
                               thickness: 1,
+                            ),
+                            const SizedBox(height: 10),
+                            FutureBuilder<PackageInfo>(
+                              future: PackageInfo.fromPlatform(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) return SizedBox();
+                                return Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Version: ${snapshot.data!.version}',
+                                    style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 10),
                             Align(
