@@ -5,7 +5,7 @@ from sqlalchemy import or_, func # type: ignore
 from app.models import User, UserProfile, UserFriendship, Round, RoundPlayer, Gelbfeld
 from app.utils import hash_password, verify_password, whoami, create_access_token
 from app.database import get_db
-from app.schemas import RegisterRequest, TokenRequest, CreateRoundInput, PlayerInput, AddPointInput, LoginRequest, BioRequest, AddFriendRequest, SearchUsersRequest
+from app.schemas import BetaTesterRequest, RegisterRequest, TokenRequest, CreateRoundInput, PlayerInput, AddPointInput, LoginRequest, BioRequest, AddFriendRequest, SearchUsersRequest
 from uuid import uuid4
 import datetime
 import os
@@ -501,3 +501,27 @@ def delete_round(round_id: int, token_request: str, db: Session = Depends(get_db
     db.commit()
 
     return {"message": "Round deleted"}
+
+@router.post("/profile/change/is_beta_tester")
+def change_is_beta_tester(request: BetaTesterRequest, db: Session = Depends(get_db)):
+    email = whoami(request.token)
+    user = db.query(User).filter(User.email == email).first()
+    print(f"Changing beta tester status for user: {user.username if user else 'Unknown'} to {request.is_beta_tester}")
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_beta_tester = request.is_beta_tester
+    db.commit()
+
+    return {"message": "Beta tester status updated", "is_beta_tester": request.is_beta_tester}
+
+@router.post("/profile/is_beta_tester")
+def is_beta_tester(token_request: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(token_request.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"is_beta_tester": user.is_beta_tester}

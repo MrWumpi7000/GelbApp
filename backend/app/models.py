@@ -10,6 +10,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True)
     password = Column(String)
+    is_beta_tester = Column(Boolean, default=False)
 
     profile = relationship("UserProfile", back_populates="user", uselist=False)
     round_participations = relationship("RoundPlayer", back_populates="user")
