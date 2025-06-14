@@ -61,7 +61,7 @@ class Round(Base):
     __tablename__ = "rounds"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(String)
     creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     is_active = Column(Boolean, default=True)
@@ -92,3 +92,15 @@ class Gelbfeld(Base):
 
     round = relationship("Round", back_populates="gelbfelder")
     player = relationship("RoundPlayer", back_populates="gelbfelder")
+
+class UserStatistics(Base):
+    __tablename__ = 'user_statistics'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    total_rounds = Column(Integer, default=0)
+    total_points = Column(Integer, default=0)
+    total_gelbfelder = Column(Integer, default=0)
+    best_score_in_round = Column(Integer, default=0)
+
+    user = relationship("User", backref="statistics")

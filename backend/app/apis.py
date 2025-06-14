@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query # type: ignore
 from fastapi.responses import StreamingResponse # type: ignore
 from sqlalchemy.orm import Session # type: ignore
-from sqlalchemy import or_, func # type: ignore
-from app.models import User, UserProfile, UserFriendship, Round, RoundPlayer, Gelbfeld
+from sqlalchemy import or_, func, desc # type: ignore
+from app.models import User, UserProfile, UserFriendship, Round, RoundPlayer, Gelbfeld, UserStatistics
 from app.utils import hash_password, verify_password, whoami, create_access_token
 from app.database import get_db
 from app.schemas import BetaTesterRequest, RegisterRequest, TokenRequest, CreateRoundInput, PlayerInput, AddPointInput, LoginRequest, BioRequest, AddFriendRequest, SearchUsersRequest
@@ -385,30 +385,32 @@ def search_users(request: SearchUsersRequest, db: Session = Depends(get_db)):
 @router.post("/rounds/create")
 def create_round(data: CreateRoundInput, db: Session = Depends(get_db)):
     print("Creating round with data:", data)
-    # Creator holen
+
     email = whoami(data.token)
-    
     if not email:
         return {"error": "Invalid token"}
 
     creator = db.query(User).filter_by(email=email).first()
     if not creator:
-        return {"error": "Username not found for the provided token"}
-    
-    already_exists = db.query(Round).filter_by(name=data.name, creator_id=creator.id).first()
-    if already_exists:
-        return {"error": "A round with this name already exists for this user"}
-    
+        return {"error": "User not found for the provided token"}
+
+    existing_round = db.query(Round).filter(
+        Round.name == data.name,
+        Round.is_active == True
+    ).first()
+    if existing_round:
+        raise HTTPException(status_code=400, detail="An active round with this name already exists.")
+
     player_already_exists = db.query(RoundPlayer).filter(
-        (RoundPlayer.guest_name == data.name) | 
-        (RoundPlayer.user_id == creator.id) & (RoundPlayer.round.has(name=data.name))
+        (RoundPlayer.guest_name == data.name) |
+        ((RoundPlayer.user_id == creator.id) & (RoundPlayer.round.has(name=data.name)))
     ).first()
     if player_already_exists:
         return {"error": "A player with this name already exists in a round for this user"}
-    
+
     new_round = Round(name=data.name, creator_id=creator.id)
     db.add(new_round)
-    db.flush()
+    db.flush() 
 
     creator_player = RoundPlayer(round_id=new_round.id, user_id=creator.id)
     db.add(creator_player)
@@ -426,14 +428,19 @@ def create_round(data: CreateRoundInput, db: Session = Depends(get_db)):
             continue 
         db.add(round_player)
 
+    stats = db.query(UserStatistics).filter_by(user_id=creator.id).first()
+    if not stats:
+        stats = UserStatistics(user_id=creator.id, total_rounds=1)
+        db.add(stats)
+    else:
+        stats.total_rounds += 1
+
     db.commit()
 
     return {"message": "Created Round", "round_id": new_round.id}
 
-
 @router.post("/points/add")
 def add_point(data: AddPointInput, db: Session = Depends(get_db)):
-
     valid_token = whoami(data.token)
     if not valid_token:
         return {"error": "Invalid token"}
@@ -452,6 +459,25 @@ def add_point(data: AddPointInput, db: Session = Depends(get_db)):
         round_player_id=player.id
     )
     db.add(gelb)
+
+    # Update statistics for real user (not guest)
+    if player.user_id:
+        stats = db.query(UserStatistics).filter_by(user_id=player.user_id).first()
+        if not stats:
+            stats = UserStatistics(user_id=player.user_id)
+            db.add(stats)
+
+        stats.total_points = (stats.total_points or 0) + 1
+        stats.total_gelbfelder = (stats.total_gelbfelder or 0) + 1
+
+
+        # Check if best score for the round needs update
+        round_players = db.query(RoundPlayer).filter_by(round_id=data.round_id, user_id=player.user_id).all()
+        max_points = max([rp.points for rp in round_players]) if round_players else 0
+        if stats.best_score_in_round is None or max_points > stats.best_score_in_round:
+            stats.best_score_in_round = max_points
+
+
     db.commit()
 
     return {
@@ -460,6 +486,8 @@ def add_point(data: AddPointInput, db: Session = Depends(get_db)):
         "points": player.points
     }
 
+
+# Update /rounds/create to increment total_rounds
 @router.get("/rounds/{round_id}/scores")
 def get_scores(round_id: int, db: Session = Depends(get_db)):
     gelbfields = len(db.query(Gelbfeld).filter_by(round_id=round_id).all())
@@ -525,3 +553,124 @@ def is_beta_tester(token_request: TokenRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     return {"is_beta_tester": user.is_beta_tester}
+
+# New endpoint to serve player statistics
+@router.post("/statistics/me")
+def get_my_statistics(token_request: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(token_request.token)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    total_rounds = db.query(RoundPlayer).filter_by(user_id=user.id).count()
+    total_points = db.query(RoundPlayer).filter_by(user_id=user.id).with_entities(func.sum(RoundPlayer.points)).scalar() or 0
+    total_gelbfelder = db.query(Gelbfeld).join(RoundPlayer).filter(RoundPlayer.user_id == user.id).count()
+    
+    # Best score in a single round
+    best_score = db.query(RoundPlayer).filter_by(user_id=user.id).order_by(RoundPlayer.points.desc()).first()
+    best_score_points = best_score.points if best_score else 0
+    
+    return {
+        "username": user.username,
+        "total_rounds": total_rounds,
+        "total_points": total_points,
+        "total_gelbfelder": total_gelbfelder,
+        "best_score_in_round": best_score_points
+    }
+
+# Leaderboard: top players globally
+@router.get("/statistics/leaderboard")
+def global_leaderboard(db: Session = Depends(get_db)):
+    players = db.query(
+        User.username,
+        func.sum(RoundPlayer.points).label("total_points"),
+        func.count(RoundPlayer.id).label("rounds_played"),
+        func.max(RoundPlayer.points).label("best_single_round")
+    ).join(RoundPlayer, RoundPlayer.user_id == User.id).group_by(User.id).order_by(desc("total_points")).limit(10).all()
+    return {
+        "leaderboard": [
+            {
+                "username": player.username,
+                "total_points": player.total_points,
+                "rounds_played": player.rounds_played,
+                "best_single_round": player.best_single_round
+            } for player in players
+        ]
+    }
+
+# Optional: Round history for the user
+@router.post("/statistics/my_rounds")
+def my_round_history(token_request: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(token_request.token)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    participations = db.query(RoundPlayer).filter_by(user_id=user.id).all()
+
+    result = []
+    for p in participations:
+        result.append({
+            "round_name": p.round.name,
+            "points": p.points,
+            "date": p.round.created_at
+        })
+
+    return {"rounds": result}
+
+@router.post("/rounds/{round_id}/deactivate")
+def deactivate_round(round_id: int, data: TokenRequest, db: Session = Depends(get_db)):
+    email = whoami(data.token)
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = db.query(User).filter_by(email=email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    round_obj = db.query(Round).filter(Round.id == round_id).first()
+    if not round_obj:
+        raise HTTPException(status_code=404, detail="Round not found")
+
+    if round_obj.creator_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to deactivate this round")
+
+    if not round_obj.is_active:
+        return {"message": "Round is already inactive"}
+
+    round_obj.is_active = False
+    db.commit()
+
+    return {"message": f"Round {round_id} deactivated successfully"}
+
+@router.get("/getProfilePicture/{username}")
+def get_profile_picture_by_username(username: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+    
+    # Use custom profile picture if it exists, else fallback
+    if profile and profile.profile_picture and os.path.exists(profile.profile_picture):
+        file_path = profile.profile_picture
+    else:
+        file_path = "/home/jasper/workspace/GelbApp/backend/app/assets/no_profile.jpg" 
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=500, detail="Default profile picture missing")
+
+    def iterfile():
+        with open(file_path, mode="rb") as file_like:
+            yield from file_like
+
+    # Determine content-type
+    ext = os.path.splitext(file_path)[1].lower()
+    content_type = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif"
+    }.get(ext, "application/octet-stream")
+
+    return StreamingResponse(iterfile(), media_type=content_type)

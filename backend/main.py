@@ -5,11 +5,6 @@ from app.database import Base, engine  # Import Base and engine to create the da
 from fastapi.middleware.cors import CORSMiddleware
 from app.models import Round, RoundPlayer, Gelbfeld  # Import your models to ensure they are registered with SQLAlchemy
 import os
-# Create the database tables if they don't exist
-
-Round.__table__.drop(bind=engine, checkfirst=True)
-RoundPlayer.__table__.drop(bind=engine, checkfirst=True)
-Gelbfeld.__table__.drop(bind=engine, checkfirst=True)
 
 Base.metadata.create_all(bind=engine)
 
